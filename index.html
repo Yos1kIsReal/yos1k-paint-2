@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yos1k Paint 2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: 'Nunito', sans-serif; background-color: #0c0401; }
+        #background-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: url('https://iimg.su/s/13/gOBI4erxAiFR63DTueRlSU34MIdkfM2KBvKFiRAiU.png'); background-size: cover; background-position: center; filter: blur(10px) brightness(0.7); transform: scale(1.05); z-index: 1; }
+        #signature { position: absolute; top: 20px; left: 20px; color: rgba(255, 255, 255, 0.5); font-size: 0.9rem; transition: opacity 0.5s ease; z-index: 30; }
+        .gradient-text { background: linear-gradient(to bottom, #ffcc00, #ff0000); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; }
+        
+        #toolbar { position: fixed; top: 6%; left: 5%; z-index: 25; opacity: 0; transition: opacity 0.6s ease; background: #1a1a1a; padding: 8px 12px; border-radius: 20px; display: flex; gap: 12px; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.08); }
+        
+        .divider { width: 1px; height: 30px; background-color: rgba(255, 255, 255, 0.1); margin: 0 4px; }
+
+        .tool-btn { 
+            width: 48px; 
+            height: 48px; 
+            border-radius: 14px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            cursor: pointer; 
+            background: #2b2b2b; 
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #888888;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .tool-btn.active { 
+            background: linear-gradient(135deg, #ffa825, #ff5100); 
+            border: 1px solid #ffbc5e;
+            color: #000000;
+            box-shadow: 0 4px 15px rgba(255, 81, 0, 0.35);
+        }
+
+        .tool-btn:hover:not(.active) {
+            background: #383838;
+            color: #b3b3b3;
+        }
+
+        /* Специальные стили для ползунка Hue (Цвет) */
+        #hue-slider {
+            background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+            -webkit-appearance: none;
+            height: 10px;
+            border-radius: 5px;
+            outline: none;
+            display: none;
+            width: 100px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: opacity 0.3s;
+        }
+        #hue-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #ffffff;
+            border-radius: 50%;
+            border: 2px solid #000;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        #paint-app { position: fixed; top: 15%; left: 5%; width: 90%; height: 80%; border-radius: 40px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); overflow: hidden; opacity: 0; transform: scale(0.9); pointer-events: none; transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1); z-index: 20; }
+        
+        #canvas-wrapper { 
+            width: 100%; height: 100%; transform-origin: 0 0; position: relative;
+            background-color: #ffffff;
+            background-image: linear-gradient(45deg, #d1d1d1 25%, transparent 25%), 
+                              linear-gradient(-45deg, #d1d1d1 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #d1d1d1 75%), 
+                              linear-gradient(-45deg, transparent 75%, #d1d1d1 75%);
+            background-size: 15px 15px; 
+            background-position: 0 0, 0 7.5px, 7.5px -7.5px, -7.5px 0px;
+        }
+        #paint-app.active, #toolbar.active { opacity: 1; transform: scale(1); pointer-events: auto; }
+        canvas { display: block; width: 100%; height: 100%; background: transparent; }
+        
+        /* Слой для отображения выделенного фрагмента (ножницы) поверх основного */
+        #selection-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="background-layer"></div>
+    <div id="signature">Made by yos1k</div>
+    <div id="landing-page" class="absolute inset-0 flex flex-col justify-center items-center z-10">
+        <div id="landing-content" class="bg-black/60 p-16 rounded-[40px] backdrop-blur-xl border border-white/10 flex flex-col items-center transition-opacity duration-500">
+            <h1 class="gradient-text text-5xl mb-8 uppercase tracking-widest">YOS1K PAINT 2</h1>
+            <button onclick="openCanvas()" class="bg-gradient-to-br from-orange-500 to-red-600 px-12 py-5 text-xl text-white rounded-2xl shadow-xl hover:scale-105 transition-transform uppercase font-bold tracking-wider">ОТКРЫТЬ ХОЛСТ</button>
+        </div>
+    </div>
+    
+    <div id="toolbar">
+        <div id="brush-tool" class="tool-btn active" onclick="setMode('brush')" title="Кисть">
+            <svg class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 20l1.2-4.5 3.3 3.3z"/>
+                <path d="M6 14.5L15.5 5l3.5 3.5-9.5 9.5z"/>
+                <path d="M16.5 4l1-1c.7-.7 1.8-.7 2.5 0l1 1c.7.7.7 1.8 0 2.5l-1 1z"/>
+            </svg>
+        </div>
+        <div id="text-tool" class="tool-btn" onclick="setMode('text')" title="Текст">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 4v3h5.5v12h3V7H19V4H5z"/>
+            </svg>
+        </div>
+        <div id="hand-tool" class="tool-btn" onclick="setMode('hand')" title="Перемещение (Рука)">
+            <svg class="w-6.5 h-6.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2a1.25 1.25 0 0 0-1.25 1.25v6.5h-.75V4.25a1.25 1.25 0 0 0-2.5 0v6.5H6.75V5.75a1.25 1.25 0 0 0-2.5 0v7.5c0 4.14 3.36 7.5 7.5 7.5h1.5c4.14 0 7.5-3.36 7.5-7.5V9.25a1.25 1.25 0 0 0-2.5 0v3h-.75V3.25A1.25 1.25 0 0 0 16.25 2a1.25 1.25 0 0 0-1.25 1.25v7h-.75V2.25A1.25 1.25 0 0 0 13 1a1.25 1.25 0 0 0-1 1z"/>
+            </svg>
+        </div>
+        
+        <div id="eraser-tool" class="tool-btn" onclick="setMode('eraser')" title="Ластик">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path>
+                <path d="M22 21H7"></path>
+                <path d="m5 11 9 9"></path>
+            </svg>
+        </div>
+
+        <div id="fill-tool" class="tool-btn" onclick="setMode('fill')" title="Заливка">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"></path>
+                <path d="m5 2 5 5"></path>
+                <path d="M2 13h15"></path>
+                <path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"></path>
+            </svg>
+        </div>
+        
+        <div id="smudge-tool" class="tool-btn" onclick="setMode('smudge')" title="Искажение (Ветер) - жесткий сдвиг">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>
+            </svg>
+        </div>
+
+        <div id="mixer-tool" class="tool-btn" onclick="setMode('mixer')" title="Смешиватель - смешивание цветов">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+            </svg>
+        </div>
+        
+        <!-- НОВЫЙ ИНСТРУМЕНТ: Ножницы -->
+        <div id="scissors-tool" class="tool-btn" onclick="setMode('scissors')" title="Ножницы (Вырезать и изменить цвет)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="6" cy="6" r="3"></circle>
+                <circle cx="6" cy="18" r="3"></circle>
+                <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+                <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+                <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+            </svg>
+        </div>
+        
+        <div id="undo-btn" class="tool-btn" onclick="undo()" title="Отменить (Ctrl+Z)">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 7v6h6"></path>
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+            </svg>
+        </div>
+        <div id="redo-btn" class="tool-btn" onclick="redo()" title="Вернуть (Ctrl+Y, Ctrl+Shift+Z)">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 7v6h-6"></path>
+                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
+            </svg>
+        </div>
+
+        <div class="divider"></div>
+
+        <input type="color" id="colorPicker" class="w-10 h-10 rounded-xl cursor-pointer border border-white/10 bg-transparent">
+        <input type="range" id="brushSize" min="1" max="50" value="5" class="w-24 cursor-pointer accent-orange-500" title="Размер кисти/инструмента">
+        
+        <input type="range" id="textSize" min="10" max="100" value="30" class="w-24 cursor-pointer accent-orange-500" title="Размер текста">
+
+        <!-- Ползунок Hue для ножниц -->
+        <input type="range" id="hue-slider" min="0" max="360" value="0" title="Изменить цвет выделения (Hue)">
+
+        <button onclick="toggleLibrary()" class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl font-bold transition border border-white/5 text-sm" title="Библиотека">Библиотека</button>
+        
+        <button onclick="triggerImageUpload()" class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl font-bold transition border border-white/5 text-sm">Вставить</button>
+        <input type="file" id="imageLoader" accept="image/*" class="hidden" onchange="insertImage(event)">
+
+        <button onclick="saveCanvas()" class="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:scale-105 transition shadow-md shadow-red-900/20 text-sm">Сохранить</button>
+        
+        <button onclick="clearCanvas()" class="px-5 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-md shadow-red-900/30 text-sm">Сброс</button>
+    </div>
+    
+    <div id="paint-app">
+        <div id="canvas-wrapper">
+            <canvas id="canvas"></canvas>
+            <!-- Слой для выделения -->
+            <canvas id="selection-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Модальное окно Библиотеки -->
+    <div id="library-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex-col items-center justify-center backdrop-blur-sm">
+        <div class="bg-[#1a1a1a] p-6 rounded-2xl border border-white/10 w-[80%] max-w-3xl h-[70%] flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-white text-2xl font-bold">Библиотека изображений</h2>
+                <button onclick="toggleLibrary()" class="text-white/50 hover:text-white transition">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="flex gap-4 mb-4">
+                <input type="file" id="libImageLoader" accept="image/*" multiple class="hidden" onchange="loadToLibrary(event)">
+                <button onclick="document.getElementById('libImageLoader').click()" class="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl font-bold hover:scale-105 transition text-sm">Добавить фото</button>
+            </div>
+            <div id="library-grid" class="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-4 gap-4 p-2 content-start bg-black/30 rounded-xl border border-white/5">
+                <!-- Картинки будут здесь -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true }), 
+              selCanvas = document.getElementById('selection-canvas'), selCtx = selCanvas.getContext('2d'),
+              paintApp = document.getElementById('paint-app'), wrapper = document.getElementById('canvas-wrapper'),
+              toolbar = document.getElementById('toolbar');
+        let scale = 1, posX = 0, posY = 0, mode = 'brush', isPanning = false, startX, startY, lastX = 0, lastY = 0;
+
+        // Переменные для истории (Назад / Вперёд)
+        let undoStack = [];
+        let redoStack = [];
+        const MAX_HISTORY = 30; // Лимит истории для экономии памяти
+
+        // Переменные для Ножниц
+        let isSelecting = false;
+        let hasSelection = false;
+        let selPoints = [];
+        let selectionImg = null; 
+        let currentSelRect = null;
+        let startSelRect = null;
+        let normPoints = [];
+        let activeHandle = null;
+        const HANDLE_RADIUS = 6;
+        let dragStartX, dragStartY;
+        let isDraggingSelection = false;
+        let isResizing = false;
+        const hueSlider = document.getElementById('hue-slider');
+        let drawing = false;
+
+        // Переменные библиотеки
+        let libraryImages = [];
+
+        function saveState() {
+            const currentState = canvas.toDataURL();
+            if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== currentState) {
+                undoStack.push(currentState);
+                if (undoStack.length > MAX_HISTORY) undoStack.shift();
+                redoStack = []; 
+            }
+        }
+
+        function undo() {
+            if (hasSelection) commitSelection();
+            if (undoStack.length > 1) {
+                redoStack.push(undoStack.pop());
+                restoreState(undoStack[undoStack.length - 1]);
+            }
+        }
+
+        function redo() {
+            if (hasSelection) commitSelection();
+            if (redoStack.length > 0) {
+                const nextState = redoStack.pop();
+                undoStack.push(nextState);
+                restoreState(nextState);
+            }
+        }
+
+        function restoreState(dataUrl) {
+            const img = new Image();
+            img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = dataUrl;
+        }
+
+        // Горячие клавиши для отмены и возврата
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT' && document.activeElement.type === 'text') return;
+            
+            if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
+            if (e.ctrlKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+                e.preventDefault();
+                redo();
+            }
+            if (e.key === 'Escape' && hasSelection) {
+                commitSelection();
+            }
+        });
+
+        // Вставка изображения (Paste / Ctrl+V)
+        window.addEventListener('paste', function(e) {
+            if (e.clipboardData) {
+                const items = e.clipboardData.items;
+                if (!items) return;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf("image") !== -1) {
+                        const blob = items[i].getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            pasteImageToCanvas(event.target.result);
+                        };
+                        reader.readAsDataURL(blob);
+                    }
+                }
+            }
+        });
+
+        function setMode(newMode) {
+            if (hasSelection) commitSelection(); 
+
+            mode = newMode;
+            document.querySelectorAll('.tool-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            const activeBtn = document.getElementById(newMode + '-tool');
+            if (activeBtn) activeBtn.classList.add('active');
+            
+            hueSlider.style.display = (mode === 'scissors') ? 'block' : 'none';
+            if(mode !== 'scissors') hueSlider.value = 0; 
+
+            updateCursor();
+
+            ctx.globalCompositeOperation = mode === 'eraser' ? 'destination-out' : 'source-over';
+
+            if (newMode === 'text') {
+                document.getElementById('colorPicker').click();
+            }
+        }
+
+        function getResizeHandle(mx, my) {
+            if (!hasSelection || !currentSelRect) return null;
+            const r = (HANDLE_RADIUS * 1.5) / scale; // Увеличенная зона клика
+            const {x, y, w, h} = currentSelRect;
+            const handles = {
+                'tl': {hx: x, hy: y},
+                'tm': {hx: x + w/2, hy: y},
+                'tr': {hx: x + w, hy: y},
+                'rm': {hx: x + w, hy: y + h/2},
+                'br': {hx: x + w, hy: y + h},
+                'bm': {hx: x + w/2, hy: y + h},
+                'bl': {hx: x, hy: y + h},
+                'lm': {hx: x, hy: y + h/2}
+            };
+            for (let key in handles) {
+                const {hx, hy} = handles[key];
+                if (Math.hypot(mx - hx, my - hy) <= r) {
+                    return key;
+                }
+            }
+            return null;
+        }
+
+        function updateCursor(mouseX, mouseY) {
+            if (mode === 'scissors') {
+                if (hasSelection && mouseX !== undefined && mouseY !== undefined) {
+                    const handle = getResizeHandle(mouseX, mouseY);
+                    if (handle) {
+                        const cursors = {
+                            'tl': 'nwse-resize', 'tm': 'ns-resize', 'tr': 'nesw-resize',
+                            'rm': 'ew-resize', 'br': 'nwse-resize', 'bm': 'ns-resize',
+                            'bl': 'nesw-resize', 'lm': 'ew-resize'
+                        };
+                        canvas.style.cursor = cursors[handle];
+                        return;
+                    }
+                    
+                    const {x, y, w, h} = currentSelRect;
+                    const minX = Math.min(x, x + w);
+                    const maxX = Math.max(x, x + w);
+                    const minY = Math.min(y, y + h);
+                    const maxY = Math.max(y, y + h);
+                    
+                    if (mouseX >= minX && mouseX <= maxX && mouseY >= minY && mouseY <= maxY) {
+                        canvas.style.cursor = 'move';
+                        return;
+                    }
+                }
+                canvas.style.cursor = 'crosshair';
+                return;
+            }
+            canvas.style.cursor = (mode === 'brush' || mode === 'eraser' || mode === 'smudge' || mode === 'mixer') ? 'crosshair' : (mode === 'text' ? 'text' : (mode === 'fill' ? 'cell' : 'grab'));
+        }
+
+        function openCanvas() {
+            const landingContent = document.getElementById('landing-content');
+            const signature = document.getElementById('signature');
+            if (landingContent) landingContent.style.opacity = '0';
+            if (signature) signature.style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('landing-page').style.display = 'none';
+                if (paintApp) paintApp.classList.add('active');
+                if (toolbar) toolbar.classList.add('active');
+                canvas.width = paintApp.offsetWidth; canvas.height = paintApp.offsetHeight;
+                selCanvas.width = paintApp.offsetWidth; selCanvas.height = paintApp.offsetHeight;
+                
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                saveState(); 
+            }, 500);
+        }
+
+        function constrain() {
+            scale = Math.max(1, Math.min(scale, 4));
+            const minX = paintApp.offsetWidth - (paintApp.offsetWidth * scale);
+            const minY = paintApp.offsetHeight - (paintApp.offsetHeight * scale);
+            posX = Math.max(minX, Math.min(0, posX));
+            posY = Math.max(minY, Math.min(0, posY));
+        }
+
+        paintApp.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            scale = Math.max(1, Math.min(scale * (e.deltaY > 0 ? 0.9 : 1.1), 4));
+            constrain();
+            wrapper.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+            if (hasSelection) drawSelectionLayer(); // Обновляем размер маркеров
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / scale;
+            const my = (e.clientY - rect.top) / scale;
+
+            if (mode === 'hand') {
+                isPanning = true;
+                canvas.style.cursor = 'grabbing';
+                startX = e.clientX - posX;
+                startY = e.clientY - posY;
+            } else if (mode === 'scissors') {
+                if (hasSelection) {
+                    const handle = getResizeHandle(mx, my);
+                    if (handle) {
+                        isResizing = true;
+                        activeHandle = handle;
+                        dragStartX = mx; dragStartY = my;
+                        startSelRect = {...currentSelRect};
+                        return;
+                    }
+                    
+                    const {x, y, w, h} = currentSelRect;
+                    const minX = Math.min(x, x + w);
+                    const maxX = Math.max(x, x + w);
+                    const minY = Math.min(y, y + h);
+                    const maxY = Math.max(y, y + h);
+                    
+                    if (mx >= minX && mx <= maxX && my >= minY && my <= maxY) {
+                        isDraggingSelection = true;
+                        dragStartX = mx; dragStartY = my;
+                        startSelRect = {...currentSelRect};
+                        return;
+                    } else {
+                        commitSelection();
+                    }
+                }
+                
+                isSelecting = true;
+                selPoints = [{x: mx, y: my}];
+                selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+            } else if (mode === 'text') {
+                const existingInput = document.getElementById('active-text-input');
+                if (existingInput) {
+                    commitText(existingInput);
+                }
+
+                const clickX = mx;
+                const clickY = my;
+
+                const input = document.createElement('input');
+                input.id = 'active-text-input';
+                input.type = 'text';
+                input.value = 'текст';
+                
+                input.style.position = 'absolute';
+                input.style.left = `${clickX + rect.left}px`;
+                input.style.top = `${clickY + rect.top - 12}px`;
+                input.style.background = 'transparent';
+                input.style.border = 'none';
+                input.style.outline = 'none';
+                input.style.boxShadow = 'none';
+                input.style.borderBottom = '1px dashed #ffa825';
+                input.style.padding = '0';
+                input.style.margin = '0';
+                input.style.display = 'block';
+                input.style.width = 'auto';
+                input.style.minWidth = '50px';
+                
+                const color = document.getElementById('colorPicker').value;
+                const size = document.getElementById('textSize').value;
+                input.style.color = color;
+                input.style.fontSize = `${size}px`;
+                input.style.fontFamily = "'Nunito', sans-serif";
+                input.style.fontWeight = 'bold';
+                input.style.zIndex = '1000';
+                
+                document.body.appendChild(input);
+                
+                setTimeout(() => {
+                    input.focus();
+                    input.select();
+                }, 50);
+
+                input.addEventListener('keydown', (ev) => {
+                    if (ev.key === 'Enter') {
+                        commitText(input);
+                    } else if (ev.key === 'Escape') {
+                        input.remove();
+                    }
+                });
+
+                input.addEventListener('blur', () => {
+                    commitText(input);
+                });
+            } else if (mode === 'fill') {
+                const clickX = Math.floor(mx);
+                const clickY = Math.floor(my);
+                const color = document.getElementById('colorPicker').value;
+                performFloodFill(clickX, clickY, color);
+            } else {
+                drawing = true;
+                lastX = mx;
+                lastY = my;
+                if (mode !== 'smudge' && mode !== 'mixer') { 
+                    ctx.beginPath();
+                    ctx.moveTo(lastX, lastY);
+                }
+            }
+        });
+
+        function commitText(input) {
+            if (!input || !input.parentNode) return; 
+            const text = input.value;
+            if (text.trim() !== '') {
+                const x = parseFloat(input.style.left);
+                const y = parseFloat(input.style.top);
+                const rect = canvas.getBoundingClientRect();
+                
+                const canvasX = (x - rect.left) / scale;
+                const canvasY = (y - rect.top) / scale;
+
+                ctx.save();
+                ctx.fillStyle = input.style.color;
+                ctx.font = `bold ${input.style.fontSize} Nunito, sans-serif`;
+                ctx.textBaseline = 'top';
+                ctx.fillText(text, canvasX, canvasY);
+                ctx.restore();
+                
+                saveState();
+            }
+            input.remove();
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) / scale;
+            const my = (e.clientY - rect.top) / scale;
+            
+            updateCursor(mx, my);
+
+            if (mode === 'hand' && isPanning) {
+                posX = e.clientX - startX;
+                posY = e.clientY - startY;
+                constrain();
+                wrapper.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+            } else if (mode === 'scissors') {
+                if (isResizing) {
+                    const dx = mx - dragStartX;
+                    const dy = my - dragStartY;
+                    
+                    if (activeHandle.includes('l')) { currentSelRect.x = startSelRect.x + dx; currentSelRect.w = startSelRect.w - dx; }
+                    if (activeHandle.includes('r')) { currentSelRect.w = startSelRect.w + dx; }
+                    if (activeHandle.includes('t')) { currentSelRect.y = startSelRect.y + dy; currentSelRect.h = startSelRect.h - dy; }
+                    if (activeHandle.includes('b')) { currentSelRect.h = startSelRect.h + dy; }
+                    
+                    drawSelectionLayer();
+                } else if (isDraggingSelection) {
+                    const dx = mx - dragStartX;
+                    const dy = my - dragStartY;
+                    currentSelRect.x = startSelRect.x + dx;
+                    currentSelRect.y = startSelRect.y + dy;
+                    drawSelectionLayer(); 
+                } else if (isSelecting) {
+                    selPoints.push({x: mx, y: my});
+                    
+                    selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+                    selCtx.beginPath();
+                    selCtx.moveTo(selPoints[0].x, selPoints[0].y);
+                    for (let i = 1; i < selPoints.length; i++) selCtx.lineTo(selPoints[i].x, selPoints[i].y);
+                    
+                    selCtx.lineWidth = 1.5;
+                    selCtx.setLineDash([5, 5]);
+                    selCtx.strokeStyle = '#000'; selCtx.stroke();
+                    selCtx.lineDashOffset = 5;
+                    selCtx.strokeStyle = '#fff'; selCtx.stroke();
+                    selCtx.setLineDash([]); 
+                }
+            } else if ((mode === 'brush' || mode === 'eraser') && drawing) {
+                ctx.lineWidth = document.getElementById('brushSize').value;
+                ctx.strokeStyle = mode === 'eraser' ? 'rgba(0,0,0,1)' : document.getElementById('colorPicker').value;
+                ctx.lineTo(mx, my);
+                ctx.stroke();
+                ctx.moveTo(mx, my);
+            } else if ((mode === 'smudge' || mode === 'mixer') && drawing) {
+                const currentX = mx;
+                const currentY = my;
+                const radius = document.getElementById('brushSize').value * 1.5;
+
+                const dist = Math.hypot(currentX - lastX, currentY - lastY);
+                const steps = Math.max(1, Math.ceil(dist / (radius / 4)));
+
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const cx = lastX + (currentX - lastX) * t;
+                    const cy = lastY + (currentY - lastY) * t;
+                    const px = lastX + (currentX - lastX) * ((i - 1) / steps);
+                    const py = lastY + (currentY - lastY) * ((i - 1) / steps);
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                    ctx.clip();
+                    
+                    if (mode === 'smudge') {
+                        ctx.globalAlpha = 1.0; 
+                    } else if (mode === 'mixer') {
+                        ctx.globalAlpha = 0.2;
+                    }
+
+                    ctx.drawImage(
+                        canvas, 
+                        px - radius, py - radius, radius * 2, radius * 2, 
+                        cx - radius, cy - radius, radius * 2, radius * 2
+                    );
+                    ctx.restore();
+                }
+                lastX = currentX;
+                lastY = currentY;
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (drawing) {
+                saveState(); 
+            }
+            isPanning = false;
+            drawing = false;
+            
+            if (mode === 'scissors') {
+                if (isResizing) {
+                    isResizing = false;
+                    activeHandle = null;
+                } else if (isDraggingSelection) {
+                    isDraggingSelection = false;
+                } else if (isSelecting) {
+                    isSelecting = false;
+                    if (selPoints.length > 5) {
+                        finishSelection();
+                    } else {
+                        selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+                        selPoints = [];
+                    }
+                }
+            }
+            updateCursor();
+        });
+
+        function finishSelection() {
+            hasSelection = true;
+            hueSlider.value = 0;
+
+            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+            for (let p of selPoints) {
+                minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+            }
+            let w = maxX - minX;
+            let h = maxY - minY;
+            
+            currentSelRect = { x: minX, y: minY, w, h };
+            
+            // Нормализуем точки для правильного изменения контура при растягивании
+            normPoints = selPoints.map(p => ({
+                x: w === 0 ? 0 : (p.x - minX) / w,
+                y: h === 0 ? 0 : (p.y - minY) / h
+            }));
+
+            selectionImg = document.createElement('canvas');
+            selectionImg.width = w || 1; 
+            selectionImg.height = h || 1;
+            const sCtx = selectionImg.getContext('2d');
+
+            sCtx.beginPath();
+            sCtx.moveTo(selPoints[0].x - minX, selPoints[0].y - minY);
+            for (let i = 1; i < selPoints.length; i++) sCtx.lineTo(selPoints[i].x - minX, selPoints[i].y - minY);
+            sCtx.closePath(); sCtx.clip();
+
+            sCtx.drawImage(canvas, -minX, -minY);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(selPoints[0].x, selPoints[0].y);
+            for (let i = 1; i < selPoints.length; i++) ctx.lineTo(selPoints[i].x, selPoints[i].y);
+            ctx.closePath();
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fill();
+            ctx.restore();
+
+            drawSelectionLayer();
+        }
+
+        function drawSelectionLayer() {
+            selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+            if (!hasSelection || !selectionImg) return;
+            
+            const {x, y, w, h} = currentSelRect;
+
+            selCtx.save();
+            selCtx.translate(x, y);
+            
+            // Если растянули в минус — переворачиваем изображение
+            const scaleX = w < 0 ? -1 : 1;
+            const scaleY = h < 0 ? -1 : 1;
+            selCtx.scale(scaleX, scaleY);
+            
+            selCtx.filter = `hue-rotate(${hueSlider.value}deg)`;
+            selCtx.drawImage(selectionImg, 0, 0, Math.abs(w), Math.abs(h));
+            selCtx.restore();
+
+            // Рисуем контур выделения, адаптированный к размеру
+            selCtx.save();
+            selCtx.beginPath();
+            selCtx.moveTo(x + normPoints[0].x * w, y + normPoints[0].y * h);
+            for (let i = 1; i < normPoints.length; i++) {
+                selCtx.lineTo(x + normPoints[i].x * w, y + normPoints[i].y * h);
+            }
+            selCtx.closePath();
+            
+            // Линии и отступы не зависят от зума камеры
+            selCtx.lineWidth = 1.5 / scale; selCtx.setLineDash([4 / scale, 4 / scale]);
+            selCtx.strokeStyle = 'white'; selCtx.stroke();
+            selCtx.lineDashOffset = 4 / scale;
+            selCtx.strokeStyle = 'black'; selCtx.stroke();
+            selCtx.restore();
+            
+            // Отрисовка кружков (handle) для изменения размера
+            selCtx.fillStyle = '#ffffff';
+            selCtx.strokeStyle = '#000000';
+            selCtx.lineWidth = 2 / scale;
+            
+            const r = HANDLE_RADIUS / scale;
+            const drawHandle = (hx, hy) => {
+                selCtx.beginPath();
+                selCtx.arc(hx, hy, r, 0, Math.PI * 2);
+                selCtx.fill();
+                selCtx.stroke();
+            };
+            
+            drawHandle(x, y); // Верх-лево
+            drawHandle(x + w/2, y); // Верх-центр
+            drawHandle(x + w, y); // Верх-право
+            drawHandle(x + w, y + h/2); // Право-центр
+            drawHandle(x + w, y + h); // Низ-право
+            drawHandle(x + w/2, y + h); // Низ-центр
+            drawHandle(x, y + h); // Низ-лево
+            drawHandle(x, y + h/2); // Лево-центр
+        }
+
+        hueSlider.addEventListener('input', drawSelectionLayer);
+
+        function commitSelection() {
+            if (!hasSelection) return;
+            
+            const {x, y, w, h} = currentSelRect;
+            
+            ctx.save();
+            ctx.filter = `hue-rotate(${hueSlider.value}deg)`;
+            ctx.translate(x, y);
+            
+            const scaleX = w < 0 ? -1 : 1;
+            const scaleY = h < 0 ? -1 : 1;
+            ctx.scale(scaleX, scaleY);
+            
+            if(selectionImg) {
+                ctx.drawImage(selectionImg, 0, 0, Math.abs(w), Math.abs(h));
+            }
+            ctx.restore();
+
+            hasSelection = false; selectionImg = null; selPoints = []; normPoints = []; currentSelRect = null;
+            selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+            hueSlider.value = 0;
+            
+            saveState();
+        }
+
+        function abortSelection() {
+            hasSelection = false; selectionImg = null; selPoints = []; normPoints = []; currentSelRect = null;
+            selCtx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+            hueSlider.value = 0;
+        }
+
+        function performFloodFill(startX, startY, hexColor) {
+            const w = canvas.width;
+            const h = canvas.height;
+            if (startX < 0 || startY < 0 || startX >= w || startY >= h) return;
+
+            const imageData = ctx.getImageData(0, 0, w, h);
+            const data = imageData.data;
+
+            const targetPos = (startY * w + startX) * 4;
+            const tR = data[targetPos], tG = data[targetPos+1], tB = data[targetPos+2], tA = data[targetPos+3];
+
+            let fR = parseInt(hexColor.slice(1, 3), 16),
+                fG = parseInt(hexColor.slice(3, 5), 16),
+                fB = parseInt(hexColor.slice(5, 7), 16),
+                fA = 255;
+
+            if (Math.abs(tR - fR) < 10 && Math.abs(tG - fG) < 10 && Math.abs(tB - fB) < 10 && Math.abs(tA - fA) < 10) return;
+
+            const matchColor = (pos) => {
+                return Math.abs(data[pos] - tR) < 40 && 
+                       Math.abs(data[pos+1] - tG) < 40 && 
+                       Math.abs(data[pos+2] - tB) < 40 && 
+                       Math.abs(data[pos+3] - tA) < 40;
+            };
+
+            const setColor = (pos) => {
+                data[pos] = fR; data[pos+1] = fG; data[pos+2] = fB; data[pos+3] = fA;
+            };
+
+            const stack = [[startX, startY]];
+
+            while (stack.length > 0) {
+                let [x, y] = stack.pop();
+                
+                let lx = x;
+                while (lx >= 0 && matchColor((y * w + lx) * 4)) lx--;
+                lx++;
+                
+                let rx = x;
+                while (rx < w && matchColor((y * w + rx) * 4)) rx++;
+                rx--;
+
+                let spanAbove = false, spanBelow = false;
+                
+                for (let i = lx; i <= rx; i++) {
+                    setColor((y * w + i) * 4);
+                    
+                    if (y > 0) {
+                        if (matchColor(((y - 1) * w + i) * 4)) {
+                            if (!spanAbove) {
+                                stack.push([i, y - 1]);
+                                spanAbove = true;
+                            }
+                        } else if (spanAbove) {
+                            spanAbove = false;
+                        }
+                    }
+                    
+                    if (y < h - 1) {
+                        if (matchColor(((y + 1) * w + i) * 4)) {
+                            if (!spanBelow) {
+                                stack.push([i, y + 1]);
+                                spanBelow = true;
+                            }
+                        } else if (spanBelow) {
+                            spanBelow = false;
+                        }
+                    }
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            saveState();
+        }
+
+        // --- ДОБАВЛЕННЫЕ И ВОССТАНОВЛЕННЫЕ ФУНКЦИИ ---
+
+        function triggerImageUpload() {
+            document.getElementById('imageLoader').click();
+        }
+
+        function insertImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    pasteImageToCanvas(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function pasteImageToCanvas(src) {
+            const img = new Image();
+            img.onload = () => {
+                // Размещение по центру холста
+                const x = (canvas.width - img.width) / 2;
+                const y = (canvas.height - img.height) / 2;
+                ctx.drawImage(img, x, y);
+                saveState();
+            };
+            img.src = src;
+        }
+
+        function saveCanvas() {
+            const link = document.createElement('a');
+            link.download = 'yos1k_paint.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        }
+
+        // --- ЛОГИКА ОКНА "БИБЛИОТЕКА" ---
+
+        function toggleLibrary() {
+            const modal = document.getElementById('library-modal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                renderLibrary();
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function loadToLibrary(event) {
+            const files = event.target.files;
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    libraryImages.push(e.target.result);
+                    renderLibrary();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function renderLibrary() {
+            const grid = document.getElementById('library-grid');
+            grid.innerHTML = '';
+            libraryImages.forEach((imgSrc, index) => {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'relative group aspect-square rounded-xl overflow-hidden cursor-pointer border border-white/10 hover:border-orange-500 transition';
+                
+                const img = document.createElement('img');
+                img.src = imgSrc;
+                img.className = 'w-full h-full object-cover';
+                
+                // Вставка на холст по клику на картинку
+                imgDiv.onclick = () => {
+                    pasteImageToCanvas(imgSrc);
+                    toggleLibrary(); // закрываем модальное окно
+                };
+
+                // Удаление из библиотеки
+                const delBtn = document.createElement('button');
+                delBtn.innerHTML = '×';
+                delBtn.className = 'absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg text-sm font-bold';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation(); // не даем событию клика дойти до imgDiv
+                    libraryImages.splice(index, 1);
+                    renderLibrary();
+                };
+
+                imgDiv.appendChild(img);
+                imgDiv.appendChild(delBtn);
+                grid.appendChild(imgDiv);
+            });
+        }
+    </script>
+</body>
+</html>
